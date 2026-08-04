@@ -1,0 +1,5 @@
+Flask==3.0.3
+googlemaps==4.10.0
+ortools==9.15.6755
+python-dotenv==1.0.1
+gunicorn==23.0.0

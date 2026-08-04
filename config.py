@@ -1,0 +1,11 @@
+DEPOT_ADDRESS = "1269, rue Paul-Émile-Giroux, Beauport, QC, Canada"
+
+OPENING_TIME = "08:00"
+CLOSING_TIME = "16:30"
+DEFAULT_DEPARTURE = "08:00"
+DEFAULT_SERVICE_MINUTES = 30
+
+AM_DEADLINE = "12:00"
+PM_START = "13:00"
+
+TIMEZONE = "America/Toronto"

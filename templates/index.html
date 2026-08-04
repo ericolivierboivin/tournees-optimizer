@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Optimiseur de tournées - Le Décapeur A.C.</title>
+<style>
+  body { font-family: Arial, sans-serif; max-width: 900px; margin: 30px auto; padding: 0 16px; color: #222; }
+  h1 { font-size: 22px; }
+  .depart-row { margin: 16px 0; display: flex; align-items: center; gap: 10px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #ddd; font-size: 14px; }
+  input[type=text], input[type=number], input[type=time], select {
+    width: 100%; padding: 6px; box-sizing: border-box; font-size: 14px;
+  }
+  col.numero { width: 4%; }
+  col.adresse { width: 26%; }
+  col.type { width: 15%; }
+  col.contrainte { width: 17%; }
+  col.service { width: 20%; }
+  col.action { width: 8%; }
+  button { cursor: pointer; padding: 8px 16px; font-size: 14px; }
+  #ajouter-arret { margin-top: 10px; }
+  .retirer { background: #d9534f; color: white; border: none; border-radius: 4px; padding: 4px 8px; }
+  .submit-btn { background: #2e7d32; color: white; border: none; border-radius: 4px; padding: 10px 22px; font-size: 15px; margin-top: 16px; }
+  .erreur {
+    background: #f8d7da; border: 1px solid #d9534f; color: #842029; padding: 12px 16px;
+    border-radius: 4px; margin: 16px 0; font-weight: bold; white-space: pre-line;
+  }
+  tbody#arrets-body { counter-reset: rownum; }
+  tbody#arrets-body tr { counter-increment: rownum; }
+  td.numero::before { content: counter(rownum); color: #555; font-weight: bold; }
+</style>
+</head>
+<body>
+<h1>Optimiseur de tournées — Le Décapeur A.C.</h1>
+<p>Point de départ fixe : {{ config_depot if config_depot else "1269, rue Paul-Émile-Giroux, Beauport, QC" }}</p>
+
+{% if error %}
+<div class="erreur">⚠ {{ error }}</div>
+{% endif %}
+
+<form action="/optimiser" method="post">
+  <div class="depart-row">
+    <label for="heure_depart"><strong>Heure de départ :</strong></label>
+    <input type="time" id="heure_depart" name="heure_depart" value="{{ default_departure }}" style="width: 120px;">
+  </div>
+
+  <table>
+    <colgroup>
+      <col class="numero"><col class="adresse"><col class="type"><col class="contrainte"><col class="service"><col class="action">
+    </colgroup>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Adresse</th>
+        <th>Type</th>
+        <th>Contrainte horaire</th>
+        <th>Temps passé chez le client (min)</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="arrets-body">
+      {% if stops %}
+        {% for s in stops %}
+        <tr>
+          <td class="numero"></td>
+          <td><input type="text" name="adresse[]" value="{{ s.adresse }}" required></td>
+          <td>
+            <select name="type[]">
+              <option value="livraison" {% if s.type == 'livraison' %}selected{% endif %}>Livraison</option>
+              <option value="cueillette" {% if s.type == 'cueillette' %}selected{% endif %}>Aller chercher / cueillette</option>
+            </select>
+          </td>
+          <td>
+            <select name="contrainte[]">
+              <option value="flexible" {% if s.contrainte == 'flexible' %}selected{% endif %}>Flexible</option>
+              <option value="am" {% if s.contrainte == 'am' %}selected{% endif %}>AM (avant 12h00)</option>
+              <option value="pm" {% if s.contrainte == 'pm' %}selected{% endif %}>PM (après 13h00)</option>
+            </select>
+          </td>
+          <td><input type="number" name="temps_service[]" value="{{ s.service_minutes }}" min="0" step="5"></td>
+          <td><button type="button" class="retirer" onclick="retirerLigne(this)">✕</button></td>
+        </tr>
+        {% endfor %}
+      {% endif %}
+    </tbody>
+  </table>
+
+  <button type="button" id="ajouter-arret" onclick="ajouterLigne()">+ Ajouter un arrêt</button>
+  <br>
+  <button type="submit" class="submit-btn">Calculer la tournée optimale</button>
+</form>
+
+<template id="ligne-vide">
+  <tr>
+    <td class="numero"></td>
+    <td><input type="text" name="adresse[]" required></td>
+    <td>
+      <select name="type[]">
+        <option value="livraison">Livraison</option>
+        <option value="cueillette">Aller chercher / cueillette</option>
+      </select>
+    </td>
+    <td>
+      <select name="contrainte[]">
+        <option value="flexible">Flexible</option>
+        <option value="am">AM (avant 12h00)</option>
+        <option value="pm">PM (après 13h00)</option>
+      </select>
+    </td>
+    <td><input type="number" name="temps_service[]" value="{{ default_service_minutes }}" min="0" step="5"></td>
+    <td><button type="button" class="retirer" onclick="retirerLigne(this)">✕</button></td>
+  </tr>
+</template>
+
+<script>
+function ajouterLigne() {
+  const tpl = document.getElementById('ligne-vide');
+  const clone = tpl.content.cloneNode(true);
+  document.getElementById('arrets-body').appendChild(clone);
+}
+function retirerLigne(btn) {
+  btn.closest('tr').remove();
+}
+// Au premier chargement, si aucun arrêt n'existe encore, on en ajoute 3 vides.
+if (document.getElementById('arrets-body').children.length === 0) {
+  ajouterLigne(); ajouterLigne(); ajouterLigne();
+}
+</script>
+</body>
+</html>
