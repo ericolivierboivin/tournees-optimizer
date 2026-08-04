@@ -148,10 +148,17 @@ def optimiser():
         duration_matrix, distance_matrix = routing.build_time_matrix(client, locations, departure_dt)
 
         solver_stops = [
-            {"constraint": s["contrainte"], "service_seconds": s["service_minutes"] * 60}
+            {
+                "constraint": s["contrainte"],
+                "service_seconds": s["service_minutes"] * 60,
+                "type": s["type"],
+            }
             for s in stops_input
         ]
-        result = solver.solve_route(duration_matrix, solver_stops, departure_time_str)
+        result = solver.solve_route(
+            duration_matrix, solver_stops, departure_time_str,
+            pickup_before_delivery_penalty_seconds=config.PICKUP_BEFORE_DELIVERY_PENALTY_SECONDS,
+        )
     except (routing.RoutingError, solver.SolverError) as exc:
         return render_template(
             "index.html",

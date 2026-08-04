@@ -15,7 +15,10 @@ def _time_to_seconds(hhmm):
     return h * 3600 + m * 60
 
 
-def _build_and_solve(duration_matrix, stops, departure_secs, end_upper_bound, am_deadline_secs, pm_start_secs):
+def _build_and_solve(
+    duration_matrix, stops, departure_secs, end_upper_bound, am_deadline_secs, pm_start_secs,
+    pickup_before_delivery_penalty_seconds=0,
+):
     n = len(duration_matrix)
     service_seconds = [0] + [s["service_seconds"] for s in stops]
 
@@ -25,7 +28,13 @@ def _build_and_solve(duration_matrix, stops, departure_secs, end_upper_bound, am
     def distance_callback(from_index, to_index):
         i = manager.IndexToNode(from_index)
         j = manager.IndexToNode(to_index)
-        return duration_matrix[i][j]
+        cost = duration_matrix[i][j]
+        if pickup_before_delivery_penalty_seconds and i > 0 and j > 0:
+            # Pénalité douce : décourage (sans l'interdire) d'enchaîner une cueillette
+            # suivie d'une livraison, pour favoriser le vidage du camion en premier.
+            if stops[i - 1]["type"] == "cueillette" and stops[j - 1]["type"] == "livraison":
+                cost += pickup_before_delivery_penalty_seconds
+        return cost
 
     transit_callback_index = routing.RegisterTransitCallback(distance_callback)
     routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
@@ -75,11 +84,14 @@ def _build_and_solve(duration_matrix, stops, departure_secs, end_upper_bound, am
     return manager, routing, time_dimension, solution
 
 
-def solve_route(duration_matrix, stops, departure_time_str):
+def solve_route(duration_matrix, stops, departure_time_str, pickup_before_delivery_penalty_seconds=0):
     """
     duration_matrix : matrice N x N de secondes (index 0 = dépôt).
-    stops : liste (index 1..N-1) de dicts {'constraint': 'flexible'|'am'|'pm', 'service_seconds': int}.
+    stops : liste (index 1..N-1) de dicts {'constraint': 'flexible'|'am'|'pm', 'service_seconds': int,
+        'type': 'livraison'|'cueillette'}.
     departure_time_str : "HH:MM".
+    pickup_before_delivery_penalty_seconds : pénalité douce (en secondes, ajoutée au coût de trajet
+        mais pas aux heures réelles) quand une cueillette précède directement une livraison. 0 = désactivé.
 
     Retourne un dict avec l'ordre optimal, les heures d'arrivée/départ à chaque arrêt,
     l'heure de retour, et si la contrainte de 16h30 est respectée (avec le retard en minutes sinon).
@@ -97,14 +109,16 @@ def solve_route(duration_matrix, stops, departure_time_str):
 
     # Passe 1 : contrainte dure de fermeture à 16h30.
     manager, routing_model, time_dimension, solution = _build_and_solve(
-        duration_matrix, stops, departure_secs, closing_secs, am_deadline_secs, pm_start_secs
+        duration_matrix, stops, departure_secs, closing_secs, am_deadline_secs, pm_start_secs,
+        pickup_before_delivery_penalty_seconds,
     )
 
     if solution is None:
         # Passe 2 : on relâche l'heure de retour pour estimer le retard réel (diagnostic).
         relaxed_upper = closing_secs + 6 * 3600
         manager, routing_model, time_dimension, solution = _build_and_solve(
-            duration_matrix, stops, departure_secs, relaxed_upper, am_deadline_secs, pm_start_secs
+            duration_matrix, stops, departure_secs, relaxed_upper, am_deadline_secs, pm_start_secs,
+            pickup_before_delivery_penalty_seconds,
         )
         if solution is None:
             raise SolverError(
